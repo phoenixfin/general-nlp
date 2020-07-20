@@ -1,11 +1,6 @@
 # -*- coding: utf-8 -*-
-
-# Import Tokenizer and pad_sequences
-import tensorflow as tf
-from tensorflow.keras.preprocessing.text import Tokenizer
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-
-# Import numpy and pandas
+import tensorflow_datasets as tfds
+import tensorflow.keras as tk
 import numpy as np
 import pandas as pd
 
@@ -25,7 +20,7 @@ def split_data(data, test_split=0.2):
     return (train_sentences, test_sentences), (train_labels, test_labels) 
 
 def get_data(fname, source, raw=True):
-    path = tf.keras.utils.get_file(fname, source)
+    path = tk.utils.get_file(fname, source)
     dataset = pd.read_csv(path)
     # print(dataset.head())
     if raw:
@@ -33,28 +28,35 @@ def get_data(fname, source, raw=True):
     else:
         return get_input(dataset)
 
-def tokenize(vocab_source, vocab_size=None):
-    tokenizer = Tokenizer(num_words=vocab_size, oov_token="<OOV>")
-    tokenizer.fit_on_texts(vocab_source)
+def tokenize(vocab_source, vocab_size=None, max_sub=0):
+    if max_sub:
+        SubEncoder = tfds.features.text.SubwordTextEncoder
+        tokenizer = SubEncoder.build_from_corpus(sentences, 
+                                                 vocab_size, 
+                                                 max_subword_length=max_sub)
+    else:
+        tokenizer = tk.preprocessing.text.Tokenizer(num_words=vocab_size, 
+                                                    oov_token="<OOV>")
+        tokenizer.fit_on_texts(vocab_source)
     return tokenizer
 
-def to_sequence(target, tokenizer=None,
-                vocab_size=None, 
-                maxlen=None, 
-                focus='after'):
-    manip='pre' if focus=='after' else 'post'
+def to_sequence(target, tokenizer=None, vocab_size=None, 
+                maxlen=None, focus='after', subwords=0):
+    manip='pre' if focus=='after' else 'post'        
 
     if tokenizer == None: 
-        tokenizer = tokenize(target, vocab_size=vocab_size)
+        tokenizer = tokenize(target, vocab_size=vocab_size, max_sub=subwords)
 
     seq = tokenizer.texts_to_sequences(target)
-    seq = pad_sequences(seq, maxlen=maxlen, padding=manip, truncating=manip)
+    seq = tk.preprocessing.sequence.pad_sequences(seq, maxlen=maxlen, 
+                                                  padding=manip, 
+                                                  truncating=manip)
     return seq, tokenizer
 
 def get_input_sequences(train_sen, test_sen, **kwargs):
     train_sequences, tokens = to_sequence(train_sen, **kwargs)
     test_sequences, _ = to_sequence(test_sen, tokenizer=tokens, **kwargs)
-
+    print(len(train_sequences), len(test_sequences))
     return (train_sequences, test_sequences), tokens
 
 def decode(text, tokenizer):
@@ -64,4 +66,3 @@ def decode(text, tokenizer):
     clean_text = ' '.join(raw).strip()
     return clean_text
  
-
