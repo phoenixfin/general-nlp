@@ -19,9 +19,12 @@ def split_data(data, test_split=0.2):
 
     return (train_sentences, test_sentences), (train_labels, test_labels) 
 
-def get_data(fname, source, raw=True):
+def get_data(fname, source, num=None, raw=True):
+
     path = tk.utils.get_file(fname, source)
     dataset = pd.read_csv(path)
+    if num:
+        dataset=dataset[:num]
     # print(dataset.head())
     if raw:
         return dataset
@@ -31,7 +34,7 @@ def get_data(fname, source, raw=True):
 def tokenize(vocab_source, vocab_size=None, max_sub=0):
     if max_sub:
         SubEncoder = tfds.features.text.SubwordTextEncoder
-        tokenizer = SubEncoder.build_from_corpus(sentences, 
+        tokenizer = SubEncoder.build_from_corpus(vocab_source, 
                                                  vocab_size, 
                                                  max_subword_length=max_sub)
     else:
@@ -56,7 +59,6 @@ def to_sequence(target, tokenizer=None, vocab_size=None,
 def get_input_sequences(train_sen, test_sen, **kwargs):
     train_sequences, tokens = to_sequence(train_sen, **kwargs)
     test_sequences, _ = to_sequence(test_sen, tokenizer=tokens, **kwargs)
-    print(len(train_sequences), len(test_sequences))
     return (train_sequences, test_sequences), tokens
 
 def decode(text, tokenizer):

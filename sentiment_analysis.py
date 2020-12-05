@@ -1,11 +1,13 @@
 from basic import BasicNLP
 import preprocess as pp
 import support
-import parameters as p
+from parameters import SentimentAnalysisPar as p
 import libraries as lib
 
 class SentimentAnalysis(BasicNLP):
     mode = 'binary'
+    data_name = 'reviews'
+    
     def __init__(self, use_subwords=False):
         super().__init__()
         self.use_subwords = use_subwords
@@ -40,26 +42,30 @@ class SentimentAnalysis(BasicNLP):
             return 'quite good'
         return 'excellent'
 
-    def report(self):
+    def output(self):
         test = lib.test_reviews[0]
         predicted = self.predict(test, tokens)
         for i in range(len(test_data)):
             pred = self._predicate(predicted[i])
             print('{} : {} ({})'.format(test[i], pred, predicted[i]))
 
-    def main(self, method):
-        dataset = pp.get_data('reviews.csv', lib.data[0])
-        sentences, labels = pp.split_data(dataset, test_split=p.split)
+    def setup(self):
+        sentences, labels = pp.split_data(self.raw_data, test_split=p.split)
         sub = 5 if self.use_subwords else 0    
         sequences, tokens = pp.get_input_sequences(*sentences, 
                                                     vocab_size=p.vocab_size, 
                                                     maxlen=p.max_length, 
                                                     focus=p.focus,
                                                     subwords=sub)
-        
-        
-        self.set_sequence_data(sequences[0], sequences[1])
-        self.set_label_data(labels[0], labels[1])
+        self.tokens = tokens
+        return sequences, labels
+
+    
+
+    def main(self, method):
+        sequences, labels = self.setup()
+        self.set_sequence_data(*sequences)
+        self.set_label_data(*labels)
         self.add_embedding(p.vocab_size, p.embedding_dim, p.max_length)
 
         getattr(self, '_'+method)()

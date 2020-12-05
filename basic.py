@@ -1,17 +1,22 @@
 import tensorflow.keras as tk
+from support import plot_graphs
+import libraries as lib
+import preprocess as pp
 
 class BasicNLP(object):
-    def __init__(self, mode):
+    def __init__(self, data_num=None):
         self.model = tk.Sequential()
-        self.mode = 'binary'
-        temp = {'sequence':None, 'label':None}
-        self.data = {'train':temp, 'test':temp}
+        self.data = {'train':{}, 'test':{}}
+        self.tokens = None
+        self.history = None
+        fname = self.data_name + '.csv'
+        self.raw_data = pp.get_data(fname, lib.data[self.data_name], data_num)        
 
     def add_embedding(self, vocab_size, dimension, input_length):
+        self.embedding_dimension = dimension
         layer = tk.layers.Embedding(vocab_size, dimension, 
                                     input_length=input_length)
         self.model.add(layer)
-        self.model.add(tk.layers.Flatten())
         
     def add_squasher(self, method):
         if method == 'flatten':
@@ -23,6 +28,10 @@ class BasicNLP(object):
         layer = getattr(tk.layers, layer_typ)
         self.model.add(layer())   
     
+    def add_convolution(self, filters, kernel_size, activation='relu'):
+        layer = tk.layers.Conv1D(filters, kernel_size, activation=activation) 
+        self.model.add(layer)       
+    
     def add_dense(self, neurons_list, activation='relu'):
         for neurons in neurons_list:
             self.model.add(tk.layers.Dense(neurons, activation=activation))
@@ -33,8 +42,25 @@ class BasicNLP(object):
             neurons = 1
         else:
             activation = 'softmax'
-            neurons = None
+            neurons = len(self.tokens.word_index) + 1
         self.add_dense([neurons], activation)
+    
+    def add_recurrent_cell(self, typ, units=None, bidirectional=False, double=False):
+        def add(cell):
+            layer = tk.layers.Bidirectional(cell) if bidirectional else cell
+            self.model.add(layer)
+
+        if units==None:
+            units = self.embedding_dimension            
+            if typ == 'GRU': unit *= 2
+        cl = getattr(tk.layers, typ)
+        if double:
+            add(cl(units, return_sequences=True))
+        add(cl(units))
+
+        
+    def add_dropout(self, rate):
+        self.model.add(tk.layers.Dropout(rate))
     
     def get_summary(self):
         self.model.summary()
@@ -60,22 +86,27 @@ class BasicNLP(object):
         self.model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])        
         train = self.data['train']
         test = self.data['test']
-        self.model.fit(train['sequence'], train['label'],
-                       epochs=num_epochs, 
-                       validation_data=(test['sequence'], test['label']))
+        val_data = (test['sequence'], test['label']) if test else None 
+        history = self.model.fit(train['sequence'], train['label'],
+                                epochs=num_epochs, 
+                                validation_data=val_data)
+        self.history = history
         
-    def predict(self, texts, tokenizer):
-        import preprocess, parameters
+    def predict(self, texts):
+        import preprocess, parameters        
+        p = getattr(parameters, self.__class__.__name__ +'Par')
         sequences, _ = preprocess.to_sequence(
             target = texts,
-            vocab_size=parameters.vocab_size, 
-            maxlen=parameters.max_length, 
-            focus=parameters.focus
+            tokenizer = self.tokens,
+            vocab_size=p.vocab_size, 
+            maxlen=p.max_length, 
+            focus=p.focus
         )
-        classes = ['positive', 'negative']
         predicted = self.model.predict(sequences)
-        
-        # The closer the class is to 1, the more positive the review is deemed to be
-        for x in range(len(texts)):
-            print(texts[x],':',predicted[x])
-            print('\n')
+        return predicted
+
+    def plot(self, metric):
+        if self.history:
+            plot_graphs(self.history, metric) 
+        else:
+            pass
