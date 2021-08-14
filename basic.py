@@ -52,7 +52,7 @@ class BasicNLP(object):
 
         if units==None:
             units = self.embedding_dimension            
-            if typ == 'GRU': unit *= 2
+            if typ == 'GRU': units *= 2
         cl = getattr(tk.layers, typ)
         if double:
             add(cl(units, return_sequences=True))
